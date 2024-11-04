@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Pausas Activas</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f0f2f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: bold;
+        }
+
+        input, canvas {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #signature-pad {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 5px;
+            touch-action: none;
+            background-color: white;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .buttons button {
+            flex: 1;
+        }
+
+        #downloadPdf {
+            background-color: #2196F3;
+        }
+
+        #downloadPdf:hover {
+            background-color: #1976D2;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Registro de Pausas Activas</h1>
+        <form id="pausaForm">
+            <div class="form-group">
+                <label for="lugarTrabajo">Lugar de Trabajo:</label>
+                <input type="text" id="lugarTrabajo" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="nombreCompleto">Nombres y Apellidos:</label>
+                <input type="text" id="nombreCompleto" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="cedula">Número de Cédula:</label>
+                <input type="text" id="cedula" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="fecha">Fecha:</label>
+                <input type="date" id="fecha" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="signature-pad">Firma:</label>
+                <canvas id="signature-pad" width="400" height="200"></canvas>
+                <button type="button" id="clear-signature">Limpiar Firma</button>
+            </div>
+            
+            <div class="buttons">
+                <button type="submit">Registrar</button>
+                <button type="button" id="downloadPdf">Descargar PDF</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Importación de librerías necesarias -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.5/signature_pad.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Registro del Service Worker para PWA
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js')
+                    .then(registration => console.log('ServiceWorker registrado'))
+                    .catch(err => console.log('Error al registrar ServiceWorker:', err));
+            }
+
+            // Inicialización del pad de firma
+            const canvas = document.getElementById('signature-pad');
+            const signaturePad = new SignaturePad(canvas, {
+                backgroundColor: 'rgb(255, 255, 255)',
+                penColor: 'rgb(0, 0, 0)'
+            });
+
+            // Ajustar el tamaño del canvas al contenedor
+            function resizeCanvas() {
+                const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                canvas.width = canvas.offsetWidth * ratio;
+                canvas.height = canvas.offsetHeight * ratio;
+                canvas.getContext("2d").scale(ratio, ratio);
+                signaturePad.clear();
+            }
+
+            window.addEventListener("resize", resizeCanvas);
+            resizeCanvas();
+
+            // Botón para limpiar firma
+            document.getElementById('clear-signature').addEventListener('click', () => {
+                signaturePad.clear();
+            });
+
+            // Establecer la fecha actual por defecto
+            document.getElementById('fecha').valueAsDate = new Date();
+
+            // Manejo del formulario
+            document.getElementById('pausaForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                if (signaturePad.isEmpty()) {
+                    alert('Por favor, agregue su firma antes de registrar.');
+                    return;
+                }
+
+                const registro = {
+                    lugarTrabajo: document.getElementById('lugarTrabajo').value,
+                    nombreCompleto: document.getElementById('nombreCompleto').value,
+                    cedula: document.getElementById('cedula').value,
+                    fecha: document.getElementById('fecha').value,
+                    firma: signaturePad.toDataURL()
+                };
+
+                // Guardar en localStorage
+                let registros = JSON.parse(localStorage.getItem('registrosPausas') || '[]');
+                registros.push(registro);
+                localStorage.setItem('registrosPausas', JSON.stringify(registros));
+
+                alert('Registro guardado exitosamente');
+                this.reset();
+                document.getElementById('fecha').valueAsDate = new Date();
+                signaturePad.clear();
+            });
+
+            // Generación del PDF con tabla
+            document.getElementById('downloadPdf').addEventListener('click', async function() {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                let registros = JSON.parse(localStorage.getItem('registrosPausas') || '[]');
+                const fechaHoy = new Date().toISOString().split('T')[0];
+                
+                // Filtrar registros de hoy
+                registros = registros.filter(reg => reg.fecha === fechaHoy);
+
+                if (registros.length === 0) {
+                    alert('No hay registros para el día de hoy');
+                    return;
+                }
+
+                // Configurar el encabezado
+                doc.setFontSize(16);
+                doc.text('Reporte de Pausas Activas', doc.internal.pageSize.width/2, 20, { align: 'center' });
+                
+                doc.setFontSize(12);
+                doc.text(`Fecha: ${fechaHoy}`, 14, 30);
+                doc.text(`Total de registros: ${registros.length}`, 14, 37);
+
+                // Preparar datos para la tabla
+                const tableData = registros.map((reg, index) => [
+                    index + 1,
+                    reg.nombreCompleto,
+                    reg.cedula,
+                    reg.lugarTrabajo,
+                    '' // Espacio para la firma
+                ]);
+
+                // Generar la tabla
+                doc.autoTable({
+                    startY: 45,
+                    head: [['#', 'Nombre y Apellido', 'Cédula', 'Lugar de Trabajo', 'Firma']],
+                    body: tableData,
+                    theme: 'grid',
+                    headStyles: {
+                        fillColor: [76, 175, 80],
+                        textColor: 255,
+                        fontSize: 10,
+                        halign: 'center',
+                        valign: 'middle'
+                    },
+                    bodyStyles: {
+                        fontSize: 9,
+                        halign: 'center',
+                        valign: 'middle'
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 15 },
+                        1: { cellWidth: 50 },
+                        2: { cellWidth: 35 },
+                        3: { cellWidth: 45 },
+                        4: { cellWidth: 45 }
+                    },
+                    didDrawCell: function(data) {
+                        // Añadir firma en la última columna
+                        if (data.column.index === 4 && data.row.section === 'body') {
+                            const registro = registros[data.row.index];
+                            if (registro && registro.firma) {
+                                try {
+                                    const dims = doc.getImageProperties(registro.firma);
+                                    const scale = Math.min(
+                                        40 / dims.width,
+                                        data.cell.height / dims.height
+                                    );
+                                    
+                                    doc.addImage(
+                                        registro.firma,
+                                        'PNG',
+                                        data.cell.x + 2,
+                                        data.cell.y + 2,
+                                        dims.width * scale,
+                                        dims.height * scale
+                                    );
+                                } catch (error) {
+                                    console.error('Error al añadir firma:', error);
+                                    doc.text('(Error en firma)', data.cell.x + 2, data.cell.y + 5);
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Añadir pie de página
+                const pageCount = doc.internal.getNumberOfPages();
+                for (let i = 1; i <= pageCount; i++) {
+                    doc.setPage(i);
+                    doc.setFontSize(8);
+                    doc.text(
+                        `Página ${i} de ${pageCount}`,
+                        doc.internal.pageSize.width / 2,
+                        doc.internal.pageSize.height - 10,
+                        { align: 'center' }
+                    );
+                    doc.text(
+                        `Generado el: ${new Date().toLocaleString()}`,
+                        14,
+                        doc.internal.pageSize.height - 10
+                    );
+                }
+
+                // Guardar el PDF
+                doc.save(`reporte-pausas-${fechaHoy}.pdf`);
+            });
+        });
+    </script>
+</body>
+</html>
